@@ -1,0 +1,366 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: distributed-ai
+  labels:
+    name: distributed-ai
+    app: distributed-ai-cluster
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-cluster-config
+  namespace: distributed-ai
+data:
+  cluster_config.json: |
+    {
+      "project": {
+        "name": "Distributed AI Kubernetes Cluster",
+        "version": "2.0.0"
+      },
+      "kubernetes": {
+        "namespace": "distributed-ai",
+        "master_replicas": 1,
+        "worker_replicas": 4
+      },
+      "ai_model": {
+        "type": "computer_vision",
+        "framework": "tensorflow",
+        "model_path": "/models/efficientnet_b0.h5",
+        "input_shape": [224, 224, 3],
+        "num_classes": 1000,
+        "model_shards": 4
+      },
+      "performance": {
+        "batch_size": 32,
+        "max_latency_ms": 50,
+        "compression_enabled": true,
+        "caching_enabled": true
+      }
+    }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-cluster-secrets
+  namespace: distributed-ai
+type: Opaque
+data:
+  # Base64 encoded secrets - update these!
+  database-password: Y2hhbmdlLW1lLWFkZGluLWV0YzU3ODk=
+  jwt-secret: Y2hhbmdlLW1lLWFkZGluLWV0YzU3ODk=
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-storage
+  namespace: distributed-ai
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cache-storage
+  namespace: distributed-ai
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: standard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-master-node
+  namespace: distributed-ai
+  labels:
+    app: distributed-ai-cluster
+    component: master-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: distributed-ai-cluster
+      component: master-node
+  template:
+    metadata:
+      labels:
+        app: distributed-ai-cluster
+        component: master-node
+    spec:
+      containers:
+      - name: master-node
+        image: your-registry/distributed-ai-cluster:latest
+        imagePullPolicy: Always
+        command: ["python", "src/kubernetes_master.py"]
+        ports:
+        - containerPort: 8888
+          name: communication
+        - containerPort: 8889
+          name: heartbeat
+        - containerPort: 8890
+          name: model-sync
+        - containerPort: 8080
+          name: monitoring
+        env:
+        - name: NODE_TYPE
+          value: "master"
+        - name: CLUSTER_CONFIG
+          value: "/config/cluster_config.json"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: model-storage
+          mountPath: /app/models
+        - name: cache-storage
+          mountPath: /app/cache
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ai-cluster-config
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: model-storage
+      - name: cache-storage
+        persistentVolumeClaim:
+          claimName: cache-storage
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-worker-nodes
+  namespace: distributed-ai
+  labels:
+    app: distributed-ai-cluster
+    component: worker-node
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: distributed-ai-cluster
+      component: worker-node
+  template:
+    metadata:
+      labels:
+        app: distributed-ai-cluster
+        component: worker-node
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - worker-node
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: worker-node
+        image: your-registry/distributed-ai-cluster:latest
+        imagePullPolicy: Always
+        command: ["python", "src/kubernetes_worker.py"]
+        ports:
+        - containerPort: 8888
+          name: communication
+        - containerPort: 8080
+          name: health
+        env:
+        - name: NODE_TYPE
+          value: "worker"
+        - name: MASTER_SERVICE
+          value: "ai-master-node"
+        - name: CLUSTER_CONFIG
+          value: "/config/cluster_config.json"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+        - name: model-storage
+          mountPath: /app/models
+        - name: cache-storage
+          mountPath: /app/cache
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2000m"
+          limits:
+            memory: "8Gi"
+            cpu: "4000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ai-cluster-config
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: model-storage
+      - name: cache-storage
+        persistentVolumeClaim:
+          claimName: cache-storage
+      - name: logs
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-master-service
+  namespace: distributed-ai
+  labels:
+    app: distributed-ai-cluster
+    component: master-node
+spec:
+  selector:
+    app: distributed-ai-cluster
+    component: master-node
+  ports:
+  - name: communication
+    port: 8888
+    targetPort: 8888
+  - name: heartbeat
+    port: 8889
+    targetPort: 8889
+  - name: model-sync
+    port: 8890
+    targetPort: 8890
+  - name: monitoring
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-worker-service
+  namespace: distributed-ai
+  labels:
+    app: distributed-ai-cluster
+    component: worker-node
+spec:
+  selector:
+    app: distributed-ai-cluster
+    component: worker-node
+  ports:
+  - name: communication
+    port: 8888
+    targetPort: 8888
+  - name: health
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-cluster-policy
+  namespace: distributed-ai
+spec:
+  podSelector:
+    matchLabels:
+      app: distributed-ai-cluster
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: distributed-ai-cluster
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8888
+    - protocol: TCP
+      port: 8889
+    - protocol: TCP
+      port: 8890
+    - protocol: TCP
+      port: 8080
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-cluster-ingress
+  namespace: distributed-ai
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+spec:
+  rules:
+  - host: ai-cluster.your-domain.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: ai-master-service
+            port:
+              number: 8080
+      - path: /dashboard
+        pathType: Prefix
+        backend:
+          service:
+            name: ai-master-service
+            port:
+              number: 8080

@@ -1,0 +1,178 @@
+# Fleet GitOps Repository Structure for Distributed AI Cluster
+# Place this in your Git repository for Fleet management
+
+# 1. Fleet.yaml - Main Fleet configuration
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: distributed-ai-cluster
+  namespace: fleet-default
+spec:
+  repo: https://github.com/your-username/distributed-ai-cluster.git
+  branch: main
+  paths:
+    - manifests/base
+    - manifests/overlays/production
+  targets:
+    - clusterName: blade  # Your cluster name
+      clusterSelector: {}  # Deploy to all clusters, or specify selector
+
+---
+# 2. Base configuration (shared across environments)
+# manifests/base/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - helm-release.yaml
+  - configmap.yaml
+
+# Common labels
+commonLabels:
+  app: distributed-ai-cluster
+  environment: base
+
+---
+# 3. Helm Release for GitOps deployment
+# manifests/base/helm-release.yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: distributed-ai-cluster
+  namespace: fleet-default
+spec:
+  repo: https://charts.your-domain.com  # Your Helm registry
+  chart: distributed-ai-cluster
+  version: "0.1.0"
+  targetNamespace: distributed-ai
+
+  # Dynamic values for your cluster
+  valuesContent: |
+    cluster:
+      master:
+        replicas: 1
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+      workers:
+        replicas: 3  # Start conservative, can scale
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+      modelStorage:
+        size: "20Gi"
+        storageClass: "local-storage"
+
+    monitoring:
+      enabled: true
+      prometheus:
+        enabled: true
+      grafana:
+        enabled: true
+
+    ingress:
+      enabled: true
+      className: "nginx"
+      hosts:
+        - host: "ai.your-domain.com"
+          paths:
+            - path: "/"
+              pathType: "Prefix"
+
+---
+# 4. Production overlay (environment-specific customizations)
+# manifests/overlays/production/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+patchesStrategicMerge:
+  - production-values.yaml
+
+namespace: distributed-ai
+
+images:
+  - name: distributed-ai-cluster
+    newTag: "latest"
+
+---
+# 5. Production-specific values
+# manifests/overlays/production/production-values.yaml
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: distributed-ai-cluster
+spec:
+  valuesContent: |
+    cluster:
+      workers:
+        replicas: 4  # Use all nodes in production
+      modelStorage:
+        size: "50Gi"
+
+    monitoring:
+      prometheus:
+        persistence:
+          size: "10Gi"
+      grafana:
+        persistence:
+          size: "5Gi"
+
+    # Production security settings
+    security:
+      networkPolicy:
+        enabled: true
+      rbac:
+        create: true
+
+---
+# 6. Namespace definition
+# manifests/base/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: distributed-ai
+  labels:
+    name: distributed-ai
+
+---
+# 7. Configuration for your cluster
+# manifests/base/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: distributed-ai-config
+  namespace: distributed-ai
+data:
+  cluster.json: |
+    {
+      "kubernetesVersion": "v1.31.12+k3s1",
+      "clusterName": "blade",
+      "clusterId": "c-m-l6b6wscq",
+      "masterNode": {
+        "replicas": 1,
+        "heartbeatInterval": 30,
+        "maxWorkersPerNode": 4
+      },
+      "workerNodes": {
+        "replicas": 4,
+        "modelShardSize": "512Mi",
+        "maxConcurrentRequests": 8
+      },
+      "monitoring": {
+        "prometheusEnabled": true,
+        "grafanaEnabled": true,
+        "alertingEnabled": true
+      }
+    }

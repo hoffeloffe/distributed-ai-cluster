@@ -1,0 +1,51 @@
+{
+  "project": {
+    "name": "Distributed AI on Kubernetes/Rancher Cluster",
+    "version": "2.0.0",
+    "description": "Production-grade distributed AI inference system running on Kubernetes/Rancher"
+  },
+  "kubernetes": {
+    "namespace": "distributed-ai",
+    "master_replicas": 1,
+    "worker_replicas": 4,
+    "image_registry": "your-registry.com",
+    "image_tag": "latest"
+  },
+  "ai_model": {
+    "type": "computer_vision",
+    "framework": "tensorflow",
+    "model_path": "/models/efficientnet_b0.h5",
+    "input_shape": [224, 224, 3],
+    "num_classes": 1000,
+    "model_shards": 4
+  },
+  "performance": {
+    "batch_size": 32,
+    "max_latency_ms": 50,
+    "compression_enabled": true,
+    "caching_enabled": true,
+    "auto_scaling": {
+      "enabled": true,
+      "min_replicas": 2,
+      "max_replicas": 8,
+      "target_cpu_utilization": 70
+    }
+  },
+  "networking": {
+    "service_mesh": "istio",
+    "ingress_controller": "nginx",
+    "load_balancer": "metal_lb",
+    "dns_domain": "ai-cluster.local"
+  },
+  "monitoring": {
+    "prometheus_enabled": true,
+    "grafana_enabled": true,
+    "jaeger_tracing": true,
+    "alert_manager": true
+  },
+  "storage": {
+    "model_storage_class": "fast-ssd",
+    "cache_storage_class": "standard",
+    "backup_enabled": true
+  }
+}

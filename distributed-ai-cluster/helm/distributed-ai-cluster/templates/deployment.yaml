@@ -1,0 +1,415 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-master
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+    component: master
+spec:
+  replicas: {{ .Values.cluster.master.replicas }}
+  selector:
+    matchLabels:
+      {{- include "distributed-ai-cluster.selectorLabels" . | nindent 6 }}
+      component: master
+  template:
+    metadata:
+      labels:
+        {{- include "distributed-ai-cluster.selectorLabels" . | nindent 8 }}
+        component: master
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "distributed-ai-cluster.fullname" . }}
+      containers:
+        - name: master
+          image: "{{ .Values.cluster.master.image.registry }}/{{ .Values.cluster.master.image.repository }}:{{ .Values.cluster.master.image.tag }}"
+          imagePullPolicy: {{ .Values.cluster.master.image.pullPolicy }}
+          ports:
+            - name: api
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: NODE_ID
+              value: "master-1"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: HEARTBEAT_INTERVAL
+              value: "{{ .Values.cluster.master.config.heartbeatInterval }}"
+            - name: MAX_WORKERS_PER_NODE
+              value: "{{ .Values.cluster.master.config.maxWorkersPerNode }}"
+            - name: MODEL_CACHE_SIZE
+              value: "{{ .Values.cluster.master.config.modelCacheSize }}"
+            - name: ENABLE_MODEL_VERSIONING
+              value: "{{ .Values.cluster.master.config.enableModelVersioning }}"
+            - name: PROMETHEUS_PORT
+              value: "9090"
+          resources:
+            {{- toYaml .Values.cluster.master.resources | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.healthCheck.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.healthCheck.readinessProbe | nindent 12 }}
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+            - name: config-volume
+              mountPath: /config
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: {{ include "distributed-ai-cluster.fullname" . }}-model-storage
+        - name: config-volume
+          configMap:
+            name: {{ include "distributed-ai-cluster.fullname" . }}-config
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-worker
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+    component: worker
+spec:
+  replicas: {{ .Values.cluster.workers.replicas }}
+  selector:
+    matchLabels:
+      {{- include "distributed-ai-cluster.selectorLabels" . | nindent 6 }}
+      component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "distributed-ai-cluster.selectorLabels" . | nindent 8 }}
+        component: worker
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "distributed-ai-cluster.fullname" . }}
+      containers:
+        - name: worker
+          image: "{{ .Values.cluster.workers.image.registry }}/{{ .Values.cluster.workers.image.repository }}:{{ .Values.cluster.workers.image.tag }}"
+          imagePullPolicy: {{ .Values.cluster.workers.image.pullPolicy }}
+          ports:
+            - name: inference
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: NODE_ID
+              value: "worker-$(POD_NAME)"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: MODEL_SHARD_SIZE
+              value: "{{ .Values.cluster.workers.config.modelShardSize }}"
+            - name: MAX_CONCURRENT_REQUESTS
+              value: "{{ .Values.cluster.workers.config.maxConcurrentRequests }}"
+            - name: CACHE_ENABLED
+              value: "{{ .Values.cluster.workers.config.cacheEnabled }}"
+            - name: ENABLE_GPU_ACCELERATION
+              value: "{{ .Values.cluster.workers.config.enableGpuAcceleration }}"
+            - name: PROMETHEUS_PORT
+              value: "9090"
+          resources:
+            {{- toYaml .Values.cluster.workers.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 45
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: model-storage
+              mountPath: /models
+      volumes:
+        - name: model-storage
+          persistentVolumeClaim:
+            claimName: {{ include "distributed-ai-cluster.fullname" . }}-model-storage
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-master-service
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.cluster.master.service.type }}
+  ports:
+    - port: {{ .Values.cluster.master.service.port }}
+      targetPort: {{ .Values.cluster.master.service.targetPort }}
+      protocol: TCP
+      name: api
+  selector:
+    {{- include "distributed-ai-cluster.selectorLabels" . | nindent 4 }}
+    component: master
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-worker-service
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: inference
+  selector:
+    {{- include "distributed-ai-cluster.selectorLabels" . | nindent 4 }}
+    component: worker
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-model-storage
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- range .Values.cluster.modelStorage.accessModes }}
+    - {{ . | quote }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.cluster.modelStorage.size | quote }}
+  {{- if .Values.cluster.modelStorage.storageClass }}
+  {{- if (not (hasKey .Values.cluster.modelStorage "storageClass")) }}
+  storageClassName: {{ .Values.cluster.modelStorage.storageClass | quote }}
+  {{- end }}
+  {{- end }}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-config
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+data:
+  cluster.json: |
+    {
+      "kubernetesVersion": "v1.31.12+k3s1",
+      "clusterName": "blade",
+      "masterNode": {
+        "replicas": {{ .Values.cluster.master.replicas }},
+        "heartbeatInterval": {{ .Values.cluster.master.config.heartbeatInterval }},
+        "maxWorkersPerNode": {{ .Values.cluster.master.config.maxWorkersPerNode }}
+      },
+      "workerNodes": {
+        "replicas": {{ .Values.cluster.workers.replicas }},
+        "modelShardSize": "{{ .Values.cluster.workers.config.modelShardSize }}",
+        "maxConcurrentRequests": {{ .Values.cluster.workers.config.maxConcurrentRequests }}
+      },
+      "monitoring": {
+        "prometheusEnabled": {{ .Values.monitoring.enabled }},
+        "grafanaEnabled": {{ .Values.monitoring.enabled }}
+      },
+      "security": {
+        "networkPolicyEnabled": {{ .Values.security.networkPolicy.enabled }},
+        "rbacEnabled": {{ .Values.security.rbac.create }}
+      }
+    }
+  logging.json: |
+    {
+      "level": "{{ .Values.logging.level }}",
+      "format": "{{ .Values.logging.format }}",
+      "enableConsole": true,
+      "enableFile": true,
+      "logFile": "/var/log/distributed-ai/cluster.log",
+      "maxSize": "100m",
+      "maxBackups": 3,
+      "maxAge": 28
+    }
+
+---
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-ingress
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if and .Values.ingress.className (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion) }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            {{- if and .pathType (semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion) }}
+            pathType: {{ .pathType }}
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ include "distributed-ai-cluster.fullname" $ }}-master-service
+                port:
+                  number: {{ $.Values.cluster.master.service.port }}
+              {{- else }}
+              serviceName: {{ include "distributed-ai-cluster.fullname" $ }}-master-service
+              servicePort: {{ $.Values.cluster.master.service.port }}
+              {{- end }}
+          {{- end }}
+    {{- end }}
+{{- end }}
+
+---
+{{- if .Values.security.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-netpol
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "distributed-ai-cluster.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Release.Namespace }}
+        {{- range .Values.security.networkPolicy.allowFromNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              name: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 443
+{{- end }}
+
+---
+{{- if .Values.security.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.security.rbac.serviceAccount.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+automountServiceAccountToken: false
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-role
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - persistentvolumeclaims
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "distributed-ai-cluster.fullname" . }}-rolebinding
+  labels:
+    {{- include "distributed-ai-cluster.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "distributed-ai-cluster.fullname" . }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "distributed-ai-cluster.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

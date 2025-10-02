@@ -1,0 +1,228 @@
+# Default values for distributed-ai-cluster
+# This file contains all configurable parameters for the distributed AI cluster
+
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# AI Cluster configuration
+cluster:
+  # Number of master nodes (should be 1 for most cases)
+  master:
+    replicas: 1
+    image:
+      registry: docker.io
+      repository: your-registry/distributed-ai-cluster
+      tag: "latest"
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+    # Health check configuration
+    healthCheck:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+
+  # Number of worker nodes for AI inference
+  workers:
+    replicas: 4
+    image:
+      registry: docker.io
+      repository: your-registry/distributed-ai-cluster
+      tag: "latest"
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "2000m"
+      limits:
+        memory: "8Gi"
+        cpu: "4000m"
+
+    # Auto-scaling configuration
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+
+# AI Model configuration
+aiModel:
+  # Model type and specifications
+  type: "computer_vision"
+  framework: "tensorflow"
+
+  # Model storage configuration
+  storage:
+    # Storage class for model files
+    storageClass: "fast-ssd"
+    # Size of the model storage volume
+    size: "50Gi"
+    # Access mode for the volume
+    accessModes:
+      - ReadWriteMany
+
+  # Model caching configuration
+  cache:
+    enabled: true
+    storageClass: "standard"
+    size: "100Gi"
+    accessModes:
+      - ReadWriteMany
+
+# Network configuration
+network:
+  # Service mesh (Istio, Linkerd, etc.)
+  serviceMesh:
+    enabled: false
+    type: "istio"
+
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      kubernetes.io/ingress.class: "nginx"
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    hosts:
+      - host: ai-cluster.local
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-master-service
+                port:
+                  number: 8080
+          - path: /dashboard
+            pathType: Prefix
+            backend:
+              service:
+                name: ai-master-service
+                port:
+                  number: 8080
+    tls: []
+      # - secretName: ai-cluster-tls
+      #   hosts:
+      #     - ai-cluster.local
+
+# Monitoring configuration
+monitoring:
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      namespace: monitoring
+      interval: 30s
+      scrapeTimeout: 10s
+
+  # Grafana dashboard
+  grafana:
+    enabled: true
+    namespace: monitoring
+
+  # Jaeger tracing
+  jaeger:
+    enabled: false
+    namespace: monitoring
+
+# Security configuration
+security:
+  # Network policies
+  networkPolicies:
+    enabled: true
+    # Restrict traffic between pods
+    restrictInternalTraffic: true
+
+  # Pod security context
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1000
+
+  # Container security context
+  securityContext:
+    enabled: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+
+  # RBAC configuration
+  rbac:
+    create: true
+    # Service account configuration
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: ""
+
+# Persistence configuration
+persistence:
+  # Model files persistence
+  models:
+    enabled: true
+    storageClass: "fast-ssd"
+    size: "50Gi"
+    accessModes:
+      - ReadWriteMany
+
+  # Cache persistence
+  cache:
+    enabled: true
+    storageClass: "standard"
+    size: "100Gi"
+    accessModes:
+      - ReadWriteMany
+
+# Logging configuration
+logging:
+  # Log level for the application
+  level: "INFO"
+  # Log format (json or text)
+  format: "json"
+
+# Configuration for different deployment environments
+environment: "production"
+
+# Production-specific settings
+production:
+  # Enable production-grade features
+  productionGrade: true
+  # Resource optimization
+  resourceOptimization: true
+  # Enhanced monitoring
+  enhancedMonitoring: true
+
+# Development-specific settings
+development:
+  # Enable development features
+  debugMode: true
+  # Hot reload
+  hotReload: true
+  # Development monitoring
+  developmentMonitoring: false
+
+# Test-specific settings
+test:
+  # Minimal resource allocation
+  minimalResources: true
+  # Disable persistence
+  disablePersistence: true
+  # Enable test monitoring
+  testMonitoring: true

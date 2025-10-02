@@ -1,0 +1,36 @@
+{
+  "project": {
+    "name": "Distributed AI Raspberry Pi Cluster",
+    "version": "1.0.0",
+    "description": "A distributed AI inference system running across multiple Raspberry Pi devices"
+  },
+  "cluster": {
+    "master_node": "192.168.1.100",
+    "worker_nodes": [
+      "192.168.1.101",
+      "192.168.1.102",
+      "192.168.1.103"
+    ],
+    "communication_port": 8888,
+    "heartbeat_port": 8889,
+    "model_sync_port": 8890
+  },
+  "ai_model": {
+    "type": "image_classification",
+    "framework": "tensorflow",
+    "model_path": "models/mobilenet_v2.h5",
+    "input_shape": [224, 224, 3],
+    "num_classes": 1000
+  },
+  "performance": {
+    "batch_size": 8,
+    "max_latency_ms": 100,
+    "compression_enabled": true,
+    "caching_enabled": true
+  },
+  "hardware": {
+    "use_coral_tpu": false,
+    "overclock_cpu": false,
+    "enable_gpu": false
+  }
+}

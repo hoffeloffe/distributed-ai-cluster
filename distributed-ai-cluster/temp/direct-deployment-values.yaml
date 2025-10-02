@@ -1,0 +1,54 @@
+cluster:
+  master:
+    replicas: 1
+    image:
+      registry: your-registry.com
+      repository: distributed-ai-cluster/master
+      tag: "latest"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+  workers:
+    replicas: 3
+    image:
+      registry: your-registry.com
+      repository: distributed-ai-cluster/worker
+      tag: "latest"
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+  modelStorage:
+    size: "20Gi"
+    accessModes: ["ReadWriteMany"]
+
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: "ai.your-domain.local"
+      paths:
+        - path: "/"
+          pathType: "Prefix"
+
+security:
+  networkPolicy:
+    enabled: true
+  rbac:
+    create: true
