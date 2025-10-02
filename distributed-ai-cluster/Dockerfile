@@ -1,46 +1,55 @@
-# Multi-stage Dockerfile for Distributed AI Worker Node
-FROM python:3.9-slim as base
+# Multi-stage Dockerfile for Distributed AI Cluster components
+FROM python:3.9-slim AS base
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies required for AI workloads
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglx-mesa0 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
     libgomp1 \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app user
+# Create application user
 RUN groupadd -r aiuser && useradd -r -g aiuser aiuser
 
-FROM base as dependencies
+FROM base AS dependencies
 
-# Install Python dependencies
-COPY requirements.txt .
+WORKDIR /deps
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM dependencies as runtime
+FROM base AS runtime
 
-# Copy application code
+# Copy Python dependencies installed in the dependencies stage
+COPY --from=dependencies /usr/local /usr/local
+
 WORKDIR /app
+
+# Copy project files
 COPY src/ ./src/
 COPY config/ ./config/
+
+# Optional models directory (empty in repo) to avoid COPY failure
 COPY models/ ./models/
 
-# Create necessary directories
+# Ensure directories exist and set permissions
 RUN mkdir -p /app/logs /app/cache && \
     chown -R aiuser:aiuser /app
 
-# Switch to non-root user
 USER aiuser
 
-# Expose ports
-EXPOSE 8888 8889 8890 8080
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+EXPOSE 8080 9090
 
-# Start the worker node
-CMD ["python", "src/kubernetes_worker.py"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python3 -m src.healthcheck || exit 1
+
+CMD ["python3", "-m", "src.entrypoint"]
