@@ -6,8 +6,6 @@ Core communication and coordination framework
 
 import asyncio
 import json
-import pickle
-import socket
 import struct
 import time
 import uuid
@@ -41,27 +39,26 @@ class NetworkMessage:
 
     def to_bytes(self) -> bytes:
         """Serialize message for network transmission"""
-        data = {
-            'message_id': self.message_id,
-            'message_type': self.message_type.value,
-            'source_node': self.source_node,
-            'target_node': self.target_node,
-            'payload': self.payload,
-            'timestamp': self.timestamp
-        }
-        return pickle.dumps(data)
+        return json.dumps({
+            "message_id": self.message_id,
+            "message_type": self.message_type.value,
+            "source_node": self.source_node,
+            "target_node": self.target_node,
+            "payload": self.payload,
+            "timestamp": self.timestamp,
+        }).encode("utf-8")
 
     @classmethod
     def from_bytes(cls, data: bytes) -> 'NetworkMessage':
         """Deserialize message from network"""
-        unpacked = pickle.loads(data)
+        obj = json.loads(data.decode("utf-8"))
         return cls(
-            message_id=unpacked['message_id'],
-            message_type=MessageType(unpacked['message_type']),
-            source_node=unpacked['source_node'],
-            target_node=unpacked['target_node'],
-            payload=unpacked['payload'],
-            timestamp=unpacked['timestamp']
+            message_type=MessageType(obj["message_type"]),
+            source_node=obj["source_node"],
+            target_node=obj["target_node"],
+            payload=obj["payload"],
+            message_id=obj["message_id"],
+            timestamp=obj["timestamp"],
         )
 
 class ClusterNode(ABC):
@@ -97,30 +94,30 @@ class ClusterNode(ABC):
         """Stop the node"""
         pass
 
-    async def send_message(self, target_ip: str, message: NetworkMessage) -> bool:
+    async def send_message(self, target_ip: str, message: NetworkMessage, timeout: float = 2.0) -> bool:
         """Send message to target node"""
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((target_ip, self.config["communication_port"]))
-
-            # Send message length first (4 bytes)
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(target_ip, self.config.get("communication_port", 8888)),
+                timeout=timeout,
+            )
             data = message.to_bytes()
-            length = struct.pack('!I', len(data))
-
-            sock.send(length + data)
-            sock.close()
+            writer.write(struct.pack("!I", len(data)) + data)
+            await writer.drain()
+            writer.close()
+            await writer.wait_closed()
             return True
-        except Exception as e:
-            logger.error(f"Failed to send message to {target_ip}: {e}")
+        except (asyncio.TimeoutError, OSError) as e:
+            logger.warning("Send to %s failed: %s", target_ip, e)
             return False
 
     async def broadcast_message(self, message: NetworkMessage) -> int:
         """Broadcast message to all peers"""
-        success_count = 0
-        for peer_ip in self.peers.values():
-            if await self.send_message(peer_ip, message):
-                success_count += 1
-        return success_count
+        results = await asyncio.gather(
+            *(self.send_message(ip, message) for ip in self.peers.values()),
+            return_exceptions=True,
+        )
+        return sum(1 for r in results if r is True)
 
 class MasterNode(ClusterNode):
     """Master node that coordinates the cluster"""
@@ -128,7 +125,7 @@ class MasterNode(ClusterNode):
     def __init__(self, node_id: str, node_ip: str):
         super().__init__(node_id, node_ip)
         self.worker_nodes: Dict[str, Dict] = {}
-        self.task_queue: asyncio.Queue = asyncio.Queue()
+        self.task_queue: asyncio.Queue = asyncio.Queue(maxsize=256)
         self.model_version = 0
 
     async def start(self):

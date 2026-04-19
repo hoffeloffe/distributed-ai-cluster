@@ -27,7 +27,7 @@ class FlexibleDeployer:
 
     def check_fleet_status(self) -> bool:
         """Check if Fleet is available in your cluster"""
-        logger.info("🔍 Checking Fleet GitOps controller...")
+        logger.info("Checking Fleet GitOps controller...")
 
         try:
             # Check if Fleet CRDs are installed
@@ -36,11 +36,11 @@ class FlexibleDeployer:
             ], capture_output=True, text=True)
 
             if result.returncode == 0:
-                logger.info("✅ Fleet GitOps controller is available")
+                logger.info("Fleet GitOps controller is available")
                 return True
             else:
                 logger.info("ℹ️ Fleet GitOps controller not found")
-                logger.info("💡 Install Fleet with: kubectl apply -f https://github.com/rancher/fleet/releases/latest/download/fleet-crd.yaml")
+                logger.info("Install Fleet with: kubectl apply -f https://github.com/rancher/fleet/releases/latest/download/fleet-crd.yaml")
                 logger.info("   Then: kubectl apply -f https://github.com/rancher/fleet/releases/latest/download/fleet.yaml")
                 return False
 
@@ -50,7 +50,7 @@ class FlexibleDeployer:
 
     def deploy_with_fleet(self, git_repo_url: str, branch: str = "main") -> bool:
         """Deploy using Fleet GitOps"""
-        logger.info(f"🚀 Deploying with Fleet GitOps from {git_repo_url}")
+        logger.info(f"Deploying with Fleet GitOps from {git_repo_url}")
 
         # Create Fleet GitRepo resource
         fleet_manifest = f'''apiVersion: fleet.cattle.io/v1alpha1
@@ -78,19 +78,19 @@ spec:
                 "kubectl", "apply", "-f", "temp/fleet-gitrepo.yaml"
             ], check=True, capture_output=True, text=True)
 
-            logger.info("✅ Fleet GitRepo created successfully")
-            logger.info("⏳ Waiting for Fleet to sync...")
+            logger.info("Fleet GitRepo created successfully")
+            logger.info("Waiting for Fleet to sync...")
             time.sleep(30)
 
             return True
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Fleet deployment failed: {e}")
+            logger.error(f"Fleet deployment failed: {e}")
             return False
 
     def deploy_direct_helm(self, registry: str = None) -> bool:
         """Deploy directly with Helm (traditional approach)"""
-        logger.info("🚀 Deploying directly with Helm...")
+        logger.info("Deploying directly with Helm...")
 
         helm_chart_path = Path(__file__).parent.parent / "helm" / "distributed-ai-cluster"
 
@@ -172,17 +172,17 @@ security:
             logger.info(f"Running: {' '.join(cmd)}")
 
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            logger.info("✅ Direct Helm deployment completed")
+            logger.info("Direct Helm deployment completed")
 
             return True
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Direct deployment failed: {e}")
+            logger.error(f"Direct deployment failed: {e}")
             return False
 
     def wait_for_ready(self, timeout: int = 300) -> bool:
         """Wait for deployment to be ready"""
-        logger.info(f"⏳ Waiting for deployment to be ready (timeout: {timeout}s)...")
+        logger.info(f"Waiting for deployment to be ready (timeout: {timeout}s)...")
 
         start_time = time.time()
 
@@ -206,27 +206,27 @@ security:
                         break
 
                 if all_ready:
-                    logger.info("✅ All deployments are ready!")
+                    logger.info("All deployments are ready!")
                     return True
 
-                logger.info("⏳ Waiting for pods to be ready...")
+                logger.info("Waiting for pods to be ready...")
                 time.sleep(15)
 
             except subprocess.CalledProcessError:
-                logger.info("⏳ Waiting for deployments to be created...")
+                logger.info("Waiting for deployments to be created...")
                 time.sleep(10)
 
-        logger.error(f"❌ Deployment not ready after {timeout} seconds")
+        logger.error(f"Deployment not ready after {timeout} seconds")
         return False
 
     def show_deployment_info(self, deployment_method: str):
         """Show deployment information"""
-        logger.info(f"📊 Deployment Information ({deployment_method})")
+        logger.info(f"Deployment Information ({deployment_method})")
         logger.info("=" * 50)
 
         try:
             # Show resources
-            logger.info(f"\n🔍 Resources in namespace '{self.namespace}':")
+            logger.info(f"\n Resources in namespace '{self.namespace}':")
             result = subprocess.run([
                 "kubectl", "get", "all,ingress,svc,pvc,configmap",
                 "-n", self.namespace
@@ -236,16 +236,16 @@ security:
                 print(result.stdout)
 
             # Show access information
-            logger.info("\n🎯 Access Information:")
+            logger.info("\n Access Information:")
             if deployment_method == "fleet":
-                logger.info("   🌐 GitOps Dashboard: Check your Git repository")
-                logger.info("   📋 Fleet Status: kubectl get gitrepo distributed-ai-cluster -n fleet-default")
+                logger.info("GitOps Dashboard: Check your Git repository")
+                logger.info("Fleet Status: kubectl get gitrepo distributed-ai-cluster -n fleet-default")
             else:
-                logger.info("   🔗 Direct Access: kubectl port-forward -n distributed-ai svc/distributed-ai-blade-master-service 8080:8080")
-                logger.info("   🌐 Then open: http://localhost:8080/dashboard")
+                logger.info("Direct Access: kubectl port-forward -n distributed-ai svc/distributed-ai-blade-master-service 8080:8080")
+                logger.info("Then open: http://localhost:8080/dashboard")
 
             # Show monitoring access
-            logger.info("\n📊 Monitoring:")
+            logger.info("\n Monitoring:")
             logger.info(f"   kubectl port-forward -n {self.namespace} svc/distributed-ai-blade-prometheus-server 9090:80")
             logger.info(f"   kubectl port-forward -n {self.namespace} svc/distributed-ai-blade-grafana 3000:80")
 
@@ -254,14 +254,14 @@ security:
 
     def deploy(self, method: str = "auto", registry: str = None, git_repo: str = None) -> bool:
         """Flexible deployment with method selection"""
-        logger.info(f"🚀 Starting Flexible Deployment (method: {method})")
+        logger.info(f"Starting Flexible Deployment (method: {method})")
         logger.info("=" * 55)
 
         # Auto-detect best method if not specified
         if method == "auto":
             if self.check_fleet_status():
                 method = "fleet"
-                logger.info("✅ Fleet detected - using GitOps deployment")
+                logger.info("Fleet detected - using GitOps deployment")
             else:
                 method = "direct"
                 logger.info("ℹ️ Fleet not available - using direct Helm deployment")
@@ -269,8 +269,8 @@ security:
         # Deploy based on selected method
         if method == "fleet":
             if not git_repo:
-                logger.error("❌ Git repository URL required for Fleet deployment")
-                logger.error("💡 Use: --git-repo https://github.com/your-username/distributed-ai-cluster.git")
+                logger.error("Git repository URL required for Fleet deployment")
+                logger.error("Use: --git-repo https://github.com/your-username/distributed-ai-cluster.git")
                 return False
 
             success = self.deploy_with_fleet(git_repo)
@@ -281,7 +281,7 @@ security:
             deployment_method = "Direct Helm"
 
         else:
-            logger.error(f"❌ Unknown deployment method: {method}")
+            logger.error(f"Unknown deployment method: {method}")
             return False
 
         if not success:
@@ -289,12 +289,12 @@ security:
 
         # Wait for ready
         if not self.wait_for_ready():
-            logger.warning("⚠️ Deployment may not be fully ready")
+            logger.warning("️ Deployment may not be fully ready")
 
         # Show deployment info
         self.show_deployment_info(deployment_method)
 
-        logger.info(f"🎉 {deployment_method} deployment completed successfully!")
+        logger.info(f"{deployment_method} deployment completed successfully!")
         return True
 
 def main():
@@ -316,10 +316,10 @@ def main():
     )
 
     if success:
-        logger.info("✅ Deployment successful!")
+        logger.info("Deployment successful!")
         return 0
     else:
-        logger.error("❌ Deployment failed!")
+        logger.error("Deployment failed!")
         return 1
 
 if __name__ == "__main__":

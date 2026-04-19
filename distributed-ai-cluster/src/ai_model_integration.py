@@ -12,6 +12,8 @@ from typing import Dict, List, Optional, Tuple, Any
 from abc import ABC, abstractmethod
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 # AI Framework imports (with fallbacks)
 try:
     import tensorflow as tf
@@ -26,12 +28,11 @@ try:
     import torch
     import torchvision
     from torchvision import transforms
+    from torchvision.models import ResNet50_Weights
     PYTORCH_AVAILABLE = True
 except ImportError:
     PYTORCH_AVAILABLE = False
     logger.warning("PyTorch not available")
-
-logger = logging.getLogger(__name__)
 
 class AIModel(ABC):
     """Abstract base class for AI models"""
@@ -93,7 +94,7 @@ class TensorFlowModel(AIModel):
             if self.model:
                 # Get model info
                 self.input_shape = self.model.input_shape[1:4]  # Remove batch dimension
-                logger.info(f"✅ TensorFlow model loaded: {self.model_name}")
+                logger.info(f"TensorFlow model loaded: {self.model_name}")
                 return True
 
         except Exception as e:
@@ -191,7 +192,7 @@ class PyTorchModel(AIModel):
                                        std=[0.229, 0.224, 0.225])
                 ])
 
-                logger.info(f"✅ PyTorch model loaded: {self.model_name}")
+                logger.info(f"PyTorch model loaded: {self.model_name}")
                 return True
 
         except Exception as e:
@@ -210,7 +211,7 @@ class PyTorchModel(AIModel):
         if self.model_name.lower() in model_mapping:
             try:
                 model_class = model_mapping[self.model_name.lower()]
-                return model_class(pretrained=True)
+                return model_class(weights=ResNet50_Weights.IMAGENET1K_V1)
             except Exception as e:
                 logger.error(f"Failed to download {self.model_name}: {e}")
 
@@ -302,10 +303,10 @@ class ModelManager:
         if model.load_model():
             self.models[model_name] = model
             self.current_model = model_name
-            logger.info(f"✅ Model {model_name} loaded successfully")
+            logger.info(f"Model {model_name} loaded successfully")
             return True
         else:
-            logger.error(f"❌ Failed to load model {model_name}")
+            logger.error(f"Failed to load model {model_name}")
             return False
 
     def get_model(self, model_name: str = None) -> Optional[AIModel]:
@@ -350,7 +351,7 @@ class ModelOptimizer:
             with open(output_path, 'wb') as f:
                 f.write(tflite_model)
 
-            logger.info(f"✅ TensorFlow model optimized and saved to {output_path}")
+            logger.info(f"TensorFlow model optimized and saved to {output_path}")
             return True
 
         except Exception as e:
@@ -380,7 +381,7 @@ class ModelOptimizer:
             with open(output_path, 'wb') as f:
                 f.write(tflite_quant_model)
 
-            logger.info(f"✅ Model quantized ({quantization}) and saved to {output_path}")
+            logger.info(f"Model quantized ({quantization}) and saved to {output_path}")
             return True
 
         except Exception as e:

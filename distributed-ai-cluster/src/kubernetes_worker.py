@@ -99,7 +99,7 @@ class KubernetesWorkerNode(WorkerNode):
             dummy_input = tf.random.normal([1] + [224, 224, 3])
             _ = self.model.predict(dummy_input, verbose=0)
 
-            logger.info("✅ AI model loaded and warmed up successfully")
+            logger.info("AI model loaded and warmed up successfully")
 
         except ImportError:
             logger.error("TensorFlow not available")
@@ -180,9 +180,9 @@ class KubernetesWorkerNode(WorkerNode):
             success = await self.send_message(self.master_ip, registration_msg)
 
             if success:
-                logger.info(f"✅ Successfully registered with master at {self.master_ip}")
+                logger.info(f"Successfully registered with master at {self.master_ip}")
             else:
-                logger.error("❌ Failed to register with master")
+                logger.error("Failed to register with master")
 
         except Exception as e:
             logger.error(f"Registration failed: {e}")

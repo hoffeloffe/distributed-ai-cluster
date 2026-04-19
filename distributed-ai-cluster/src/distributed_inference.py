@@ -5,10 +5,11 @@ Handles model sharding, inference distribution, and synchronization
 """
 
 import asyncio
+import hashlib
 import json
-import pickle
 import time
 import uuid
+from collections import OrderedDict
 import numpy as np
 from typing import Dict, List, Optional, Any, Tuple, Union
 import tensorflow as tf
@@ -16,6 +17,8 @@ from tensorflow.keras.models import load_model, Model
 import logging
 
 logger = logging.getLogger(__name__)
+
+CACHE_MAX = 1024
 
 class ModelShard:
     """Represents a shard of a distributed neural network"""
@@ -97,7 +100,7 @@ class DistributedInference:
         self.node_id = node_id
         self.cluster_manager = cluster_manager
         self.model_distributor = model_distributor
-        self.inference_cache: Dict[str, Tuple[np.ndarray, float]] = {}
+        self.inference_cache: "OrderedDict[str, Tuple[np.ndarray, float]]" = OrderedDict()
         self.cache_ttl = 300  # 5 minutes
 
     async def distributed_inference(self, input_data: np.ndarray) -> np.ndarray:
@@ -106,10 +109,11 @@ class DistributedInference:
 
         try:
             # Check cache first
-            cache_key = self._generate_cache_key(input_data)
+            cache_key = self._cache_key(input_data)
             if self._is_cache_valid(cache_key):
                 cached_result, _ = self.inference_cache[cache_key]
-                logger.info(f"Cache hit for inference request")
+                self.inference_cache.move_to_end(cache_key)
+                logger.info("Cache hit for inference request")
                 return cached_result
 
             # Route to appropriate shards based on model distribution
@@ -118,10 +122,13 @@ class DistributedInference:
             # Combine results from all shards
             final_result = self._combine_shard_results(results)
 
-            # Cache the result
+            # Cache the result with LRU eviction
             self.inference_cache[cache_key] = (final_result, start_time)
+            self.inference_cache.move_to_end(cache_key)
+            while len(self.inference_cache) > CACHE_MAX:
+                self.inference_cache.popitem(last=False)
 
-            # Clean up old cache entries
+            # Clean up expired cache entries
             self._cleanup_cache()
 
             latency = (time.time() - start_time) * 1000
@@ -133,11 +140,9 @@ class DistributedInference:
             logger.error(f"Distributed inference failed: {e}")
             raise
 
-    def _generate_cache_key(self, input_data: np.ndarray) -> str:
-        """Generate cache key for input data"""
-        # Use hash of input data shape and first few values
-        data_hash = hash(str(input_data.shape) + str(input_data.flatten()[:10]))
-        return f"cache_{abs(data_hash)}"
+    def _cache_key(self, x: np.ndarray) -> str:
+        """Generate cache key from full content hash of input"""
+        return hashlib.blake2b(x.tobytes(), digest_size=16).hexdigest()
 
     def _is_cache_valid(self, cache_key: str) -> bool:
         """Check if cache entry is still valid"""

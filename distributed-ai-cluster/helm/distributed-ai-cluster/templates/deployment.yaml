@@ -34,8 +34,12 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "distributed-ai-cluster.fullname" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: master
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           image: "{{ .Values.cluster.master.image.registry }}/{{ .Values.cluster.master.image.repository }}:{{ .Values.cluster.master.image.tag }}"
           imagePullPolicy: {{ .Values.cluster.master.image.pullPolicy }}
           ports:
@@ -115,8 +119,12 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       serviceAccountName: {{ include "distributed-ai-cluster.fullname" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: worker
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           image: "{{ .Values.cluster.workers.image.registry }}/{{ .Values.cluster.workers.image.repository }}:{{ .Values.cluster.workers.image.tag }}"
           imagePullPolicy: {{ .Values.cluster.workers.image.pullPolicy }}
           ports:

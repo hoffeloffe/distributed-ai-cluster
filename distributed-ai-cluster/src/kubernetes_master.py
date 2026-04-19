@@ -305,12 +305,12 @@ class KubernetesClusterManager:
 
         deployment_healthy = await self._wait_for_deployment_ready()
         if deployment_healthy:
-            logger.info("✅ Distributed AI cluster deployment completed successfully!")
+            logger.info("Distributed AI cluster deployment completed successfully!")
 
             # Start the master node logic
             await self.master_node.start()
         else:
-            logger.error("❌ Cluster deployment failed")
+            logger.error("Cluster deployment failed")
             return False
 
         return True
@@ -383,7 +383,7 @@ async def main():
     success = await manager.deploy_cluster()
 
     if success:
-        logger.info("🎉 Distributed AI cluster deployed successfully on Kubernetes!")
+        logger.info("Distributed AI cluster deployed successfully on Kubernetes!")
 
         # Keep running for monitoring
         try:
@@ -395,7 +395,7 @@ async def main():
             logger.info("Shutting down cluster...")
             await master.stop()
     else:
-        logger.error("❌ Failed to deploy cluster")
+        logger.error("Failed to deploy cluster")
         exit(1)
 
 if __name__ == "__main__":

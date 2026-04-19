@@ -468,7 +468,7 @@ def demonstrate_advanced_features():
         for worker in selections:
             distribution[worker] = distribution.get(worker, 0) + 1
 
-        print(f"{algorithm.value"25"} -> {distribution}")
+        print(f"{algorithm.value:<25} -> {distribution}")
 
     # Demonstrate model versioning
     print("\n📦 Model Version Management:")
