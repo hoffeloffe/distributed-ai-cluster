@@ -1,0 +1,41 @@
+name: Kubernetes & Helm validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CHART_DIR: distributed-ai-cluster/helm/distributed-ai-cluster
+  K8S_DIR: distributed-ai-cluster/k8s
+  KUBECONFORM_VERSION: v0.6.7
+
+jobs:
+  validate:
+    name: Helm lint, template & kubeconform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSfL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+          kubeconform -v
+
+      - name: Helm lint
+        run: helm lint "$CHART_DIR"
+
+      - name: Helm template + validate
+        run: |
+          helm template test "$CHART_DIR" \
+            | kubeconform -summary -strict -ignore-missing-schemas
+
+      - name: Validate raw k8s manifests
+        run: kubeconform -summary -strict -ignore-missing-schemas "$K8S_DIR"

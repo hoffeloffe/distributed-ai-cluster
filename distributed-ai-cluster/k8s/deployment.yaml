@@ -38,17 +38,12 @@ data:
         "caching_enabled": true
       }
     }
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ai-cluster-secrets
-  namespace: distributed-ai
-type: Opaque
-data:
-  # Base64 encoded secrets - update these!
-  database-password: Y2hhbmdlLW1lLWFkZGluLWV0YzU3ODk=
-  jwt-secret: Y2hhbmdlLW1lLWFkZGluLWV0YzU3ODk=
+# NOTE: The `ai-cluster-secrets` Secret is intentionally NOT defined here.
+# Never commit real (or base64-"encoded", which is not encryption) secret values
+# to git. Create the Secret out-of-band instead. See k8s/secrets.example.yaml and
+# the "Secret management" section of the README for the supported approaches
+# (kubectl create secret, Sealed Secrets, External Secrets Operator, or the
+# Azure Key Vault Secrets Store CSI driver).
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
