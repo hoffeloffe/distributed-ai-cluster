@@ -1,23 +1,40 @@
-# Default values for distributed-ai-cluster
-# This file contains all configurable parameters for the distributed AI cluster
+# Default values for distributed-ai-cluster.
+# Keys here are kept in sync with the chart templates. Run `helm lint` and
+# `helm template .` after editing.
 
-# Global configuration
+nameOverride: ""
+fullnameOverride: ""
+namespace: ""
+
 global:
   imageRegistry: ""
   imagePullSecrets: []
   storageClass: ""
 
-# AI Cluster configuration
+# Scheduling (applied to both master and workers).
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
 cluster:
-  # Number of master nodes (should be 1 for most cases)
   master:
     replicas: 1
     image:
       registry: docker.io
+      # Override with your own image. Pin to an immutable tag (git SHA / semver),
+      # not "latest", for reproducible, rollback-able deploys.
       repository: your-registry/distributed-ai-cluster
-      tag: "latest"
+      tag: "0.1.0"
       pullPolicy: IfNotPresent
-
+    config:
+      heartbeatInterval: 10
+      maxWorkersPerNode: 4
+      modelCacheSize: "2Gi"
+      enableModelVersioning: true
+    service:
+      type: ClusterIP
+      port: 8080
+      targetPort: 8080
     resources:
       requests:
         memory: "2Gi"
@@ -26,23 +43,18 @@ cluster:
         memory: "4Gi"
         cpu: "2000m"
 
-    # Health check configuration
-    healthCheck:
-      enabled: true
-      initialDelaySeconds: 30
-      periodSeconds: 10
-      timeoutSeconds: 5
-      failureThreshold: 3
-
-  # Number of worker nodes for AI inference
   workers:
     replicas: 4
     image:
       registry: docker.io
       repository: your-registry/distributed-ai-cluster
-      tag: "latest"
+      tag: "0.1.0"
       pullPolicy: IfNotPresent
-
+    config:
+      modelShardSize: "1Gi"
+      maxConcurrentRequests: 16
+      cacheEnabled: true
+      enableGpuAcceleration: false
     resources:
       requests:
         memory: "4Gi"
@@ -51,178 +63,67 @@ cluster:
         memory: "8Gi"
         cpu: "4000m"
 
-    # Auto-scaling configuration
-    autoscaling:
-      enabled: false
-      minReplicas: 2
-      maxReplicas: 10
-      targetCPUUtilizationPercentage: 70
-      targetMemoryUtilizationPercentage: 80
-
-# AI Model configuration
-aiModel:
-  # Model type and specifications
-  type: "computer_vision"
-  framework: "tensorflow"
-
-  # Model storage configuration
-  storage:
-    # Storage class for model files
+  modelStorage:
     storageClass: "fast-ssd"
-    # Size of the model storage volume
     size: "50Gi"
-    # Access mode for the volume
     accessModes:
       - ReadWriteMany
 
-  # Model caching configuration
-  cache:
-    enabled: true
-    storageClass: "standard"
-    size: "100Gi"
-    accessModes:
-      - ReadWriteMany
+# Probes for the master container (workers define their own inline).
+healthCheck:
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
 
-# Network configuration
-network:
-  # Service mesh (Istio, Linkerd, etc.)
-  serviceMesh:
-    enabled: false
-    type: "istio"
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: ai-cluster.local
+      paths:
+        - path: /api
+          pathType: Prefix
+        - path: /dashboard
+          pathType: Prefix
+  tls: []
+  # - secretName: ai-cluster-tls
+  #   hosts:
+  #     - ai-cluster.local
 
-  # Ingress configuration
-  ingress:
-    enabled: true
-    className: "nginx"
-    annotations:
-      kubernetes.io/ingress.class: "nginx"
-      nginx.ingress.kubernetes.io/rewrite-target: /
-      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    hosts:
-      - host: ai-cluster.local
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: ai-master-service
-                port:
-                  number: 8080
-          - path: /dashboard
-            pathType: Prefix
-            backend:
-              service:
-                name: ai-master-service
-                port:
-                  number: 8080
-    tls: []
-      # - secretName: ai-cluster-tls
-      #   hosts:
-      #     - ai-cluster.local
-
-# Monitoring configuration
 monitoring:
-  # Prometheus metrics
-  prometheus:
-    enabled: true
-    serviceMonitor:
-      enabled: true
-      namespace: monitoring
-      interval: 30s
-      scrapeTimeout: 10s
+  enabled: true
 
-  # Grafana dashboard
-  grafana:
-    enabled: true
-    namespace: monitoring
-
-  # Jaeger tracing
-  jaeger:
-    enabled: false
-    namespace: monitoring
-
-# Security configuration
-security:
-  # Network policies
-  networkPolicies:
-    enabled: true
-    # Restrict traffic between pods
-    restrictInternalTraffic: true
-
-  # Pod security context
-  podSecurityContext:
-    enabled: true
-    fsGroup: 1000
-
-  # Container security context
-  securityContext:
-    enabled: true
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
-    readOnlyRootFilesystem: true
-    allowPrivilegeEscalation: false
-
-  # RBAC configuration
-  rbac:
-    create: true
-    # Service account configuration
-    serviceAccount:
-      create: true
-      annotations: {}
-      name: ""
-
-# Persistence configuration
-persistence:
-  # Model files persistence
-  models:
-    enabled: true
-    storageClass: "fast-ssd"
-    size: "50Gi"
-    accessModes:
-      - ReadWriteMany
-
-  # Cache persistence
-  cache:
-    enabled: true
-    storageClass: "standard"
-    size: "100Gi"
-    accessModes:
-      - ReadWriteMany
-
-# Logging configuration
 logging:
-  # Log level for the application
   level: "INFO"
-  # Log format (json or text)
   format: "json"
 
-# Configuration for different deployment environments
-environment: "production"
+security:
+  networkPolicy:
+    enabled: true
+    allowFromNamespaces:
+      - ingress-nginx
+  rbac:
+    create: true
+    serviceAccount:
+      annotations: {}
 
-# Production-specific settings
-production:
-  # Enable production-grade features
-  productionGrade: true
-  # Resource optimization
-  resourceOptimization: true
-  # Enhanced monitoring
-  enhancedMonitoring: true
-
-# Development-specific settings
-development:
-  # Enable development features
-  debugMode: true
-  # Hot reload
-  hotReload: true
-  # Development monitoring
-  developmentMonitoring: false
-
-# Test-specific settings
-test:
-  # Minimal resource allocation
-  minimalResources: true
-  # Disable persistence
-  disablePersistence: true
-  # Enable test monitoring
-  testMonitoring: true
+# Used by the serviceAccountName helper.
+serviceAccount:
+  create: true
+  name: ""

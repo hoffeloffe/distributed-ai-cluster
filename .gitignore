@@ -1,0 +1,24 @@
+# Secrets — never commit real values
+*.secret.yaml
+secret.yaml
+secrets.yaml
+*.env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Backups / scratch
+*.backup
+*.bak
+temp/
+tmp/
+
+# OS
+.DS_Store

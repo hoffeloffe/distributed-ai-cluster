@@ -185,6 +185,28 @@ distributed-ai-cluster/
 - Access control and authentication
 - Secure model distribution
 
+### Secret management
+
+Secrets are **never** committed to this repository. The `k8s/deployment.yaml`
+manifest expects an `ai-cluster-secrets` Secret to exist, but does not define its
+values. Create it with one of:
+
+- **Imperative (simplest):**
+  ```bash
+  kubectl create secret generic ai-cluster-secrets \
+    --namespace distributed-ai \
+    --from-literal=database-password='<value>' \
+    --from-literal=jwt-secret='<value>'
+  ```
+- **Sealed Secrets** (Bitnami) — encrypt with `kubeseal`, commit only the
+  encrypted `SealedSecret`.
+- **External Secrets Operator** — sync from Azure Key Vault, AWS Secrets
+  Manager, or HashiCorp Vault at runtime.
+- **Azure Key Vault Secrets Store CSI driver** — mount Key Vault secrets into
+  pods on AKS.
+
+See `k8s/secrets.example.yaml` for the expected structure.
+
 ## 📊 Monitoring Dashboard
 
 The web dashboard provides:
