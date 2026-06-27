@@ -1,0 +1,40 @@
+name: Terraform validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "distributed-ai-cluster/infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "distributed-ai-cluster/infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  contents: read
+
+env:
+  TF_DIR: distributed-ai-cluster/infra/terraform
+
+jobs:
+  validate:
+    name: fmt, init & validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Format check
+        run: terraform -chdir="$TF_DIR" fmt -check -recursive
+
+      - name: Init (no backend)
+        run: terraform -chdir="$TF_DIR" init -backend=false -input=false
+
+      - name: Validate
+        run: terraform -chdir="$TF_DIR" validate

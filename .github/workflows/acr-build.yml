@@ -1,0 +1,53 @@
+name: Build & push image to ACR
+
+# App-side CI: builds the container and pushes it to Azure Container Registry,
+# tagged by commit SHA (immutable) plus a moving `latest`. Keyless via Azure OIDC.
+#
+# Required repository configuration:
+#   Secrets:  AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   Variables: ACR_LOGIN_SERVER   # e.g. distaiacrt6g0m.azurecr.io
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - "distributed-ai-cluster/src/**"
+      - "distributed-ai-cluster/Dockerfile"
+      - "distributed-ai-cluster/requirements*.txt"
+      - ".github/workflows/acr-build.yml"
+
+permissions:
+  id-token: write # Azure OIDC
+  contents: read
+
+env:
+  IMAGE: distributed-ai-cluster
+  CONTEXT: distributed-ai-cluster
+  DOCKERFILE: distributed-ai-cluster/Dockerfile
+
+jobs:
+  build:
+    name: docker build & push
+    runs-on: ubuntu-latest
+    environment: azure
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${{ vars.ACR_LOGIN_SERVER }}"
+
+      - name: Build & push
+        run: |
+          REG="${{ vars.ACR_LOGIN_SERVER }}"
+          docker build -f "$DOCKERFILE" -t "$REG/$IMAGE:${GITHUB_SHA}" -t "$REG/$IMAGE:latest" "$CONTEXT"
+          docker push "$REG/$IMAGE:${GITHUB_SHA}"
+          docker push "$REG/$IMAGE:latest"
+          echo "Pushed $REG/$IMAGE:${GITHUB_SHA}"

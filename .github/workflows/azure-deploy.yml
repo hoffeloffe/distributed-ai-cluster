@@ -1,0 +1,97 @@
+name: Azure deploy (AKS)
+
+# Manual, opt-in deploy. Provisions/updates infra with Terraform and deploys the
+# Helm chart to AKS. Uses Azure OIDC federation — no long-lived secrets.
+#
+# Required repository configuration:
+#   Secrets:
+#     AZURE_CLIENT_ID          # app registration (federated credentials) client id
+#     AZURE_TENANT_ID
+#     AZURE_SUBSCRIPTION_ID
+#     TFSTATE_RG               # resource group holding the state storage account
+#     TFSTATE_STORAGE_ACCOUNT  # storage account for remote state
+#     TFSTATE_CONTAINER        # blob container for remote state
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terraform action"
+        type: choice
+        options: [plan, apply]
+        default: plan
+      deploy_app:
+        description: "Also deploy the Helm chart (requires the chart + app image to be working)"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write # required for Azure OIDC login
+  contents: read
+
+env:
+  TF_DIR: distributed-ai-cluster/infra/terraform
+  CHART_DIR: distributed-ai-cluster/helm/distributed-ai-cluster
+
+jobs:
+  deploy:
+    name: Terraform ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: azure
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          terraform init -input=false \
+            -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=${{ secrets.TFSTATE_CONTAINER }}" \
+            -backend-config="key=distributed-ai-cluster.tfstate" \
+            -backend-config="use_azuread_auth=true"
+
+      - name: Terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Terraform apply
+        if: ${{ inputs.action == 'apply' }}
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform apply -input=false tfplan
+
+      - name: Deploy Helm chart to AKS
+        if: ${{ inputs.action == 'apply' && inputs.deploy_app }}
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          RG=$(terraform output -raw resource_group_name)
+          AKS=$(terraform output -raw aks_cluster_name)
+          az aks get-credentials --resource-group "$RG" --name "$AKS" --overwrite-existing
+          helm upgrade --install distributed-ai "$GITHUB_WORKSPACE/$CHART_DIR" \
+            --namespace distributed-ai --create-namespace --wait

@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and adjust. Do NOT commit terraform.tfvars.
+prefix             = "distai"
+location           = "westeurope"
+node_count         = 2
+node_vm_size       = "Standard_D2s_v3"
+acr_sku            = "Standard"
+# kubernetes_version = "1.30"
+
+tags = {
+  project = "distributed-ai-cluster"
+  managed = "terraform"
+  owner   = "hoffeloffe"
+}
