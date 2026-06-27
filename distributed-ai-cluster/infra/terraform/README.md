@@ -63,6 +63,19 @@ helm upgrade --install distributed-ai ../../helm/distributed-ai-cluster \
   --namespace distributed-ai --create-namespace
 ```
 
+## Verified live
+
+This config has been applied to a real Azure subscription: it provisioned the
+resource group, ACR (`Standard`), and a 2-node AKS cluster (`v1.34`,
+`provisioningState: Succeeded`), with both nodes `Ready`. A test workload exposed
+via a `LoadBalancer` received a public IP and served `HTTP 200`, and the
+`AcrPull` role assignment was created so AKS can pull from ACR without secrets.
+
+> **VM size note:** the default is `Standard_B2s_v2`. Some subscriptions (e.g.
+> trial/MSDN) have **0 quota** for the `Bsv2` family or disallow legacy `Standard_B2s`
+> entirely. Check `az vm list-usage --location <region>` and override
+> `node_vm_size` (e.g. `Standard_D2s_v3`) if you hit a quota/availability error.
+
 ## CI/CD
 
 - **`.github/workflows/terraform.yml`** — runs `fmt -check`, `init -backend=false`,

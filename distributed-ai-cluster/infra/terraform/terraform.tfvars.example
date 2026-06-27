@@ -2,7 +2,7 @@
 prefix             = "distai"
 location           = "westeurope"
 node_count         = 2
-node_vm_size       = "Standard_B2s"
+node_vm_size       = "Standard_B2s_v2"
 acr_sku            = "Standard"
 # kubernetes_version = "1.30"
 
