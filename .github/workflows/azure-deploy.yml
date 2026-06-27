@@ -19,6 +19,10 @@ on:
         type: choice
         options: [plan, apply]
         default: plan
+      deploy_app:
+        description: "Also deploy the Helm chart (requires the chart + app image to be working)"
+        type: boolean
+        default: false
 
 permissions:
   id-token: write # required for Azure OIDC login
@@ -60,7 +64,8 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TFSTATE_RG }}" \
             -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=${{ secrets.TFSTATE_CONTAINER }}" \
-            -backend-config="key=distributed-ai-cluster.tfstate"
+            -backend-config="key=distributed-ai-cluster.tfstate" \
+            -backend-config="use_azuread_auth=true"
 
       - name: Terraform plan
         working-directory: ${{ env.TF_DIR }}
@@ -82,7 +87,7 @@ jobs:
         run: terraform apply -input=false tfplan
 
       - name: Deploy Helm chart to AKS
-        if: ${{ inputs.action == 'apply' }}
+        if: ${{ inputs.action == 'apply' && inputs.deploy_app }}
         working-directory: ${{ env.TF_DIR }}
         run: |
           RG=$(terraform output -raw resource_group_name)

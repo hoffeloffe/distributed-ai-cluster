@@ -28,9 +28,9 @@ variable "node_count" {
 }
 
 variable "node_vm_size" {
-  description = "VM size for the default node pool."
+  description = "VM size for the default node pool. Pick a SKU your subscription has quota for (see README quota note)."
   type        = string
-  default     = "Standard_B2s_v2"
+  default     = "Standard_D2s_v3"
 }
 
 variable "acr_sku" {
