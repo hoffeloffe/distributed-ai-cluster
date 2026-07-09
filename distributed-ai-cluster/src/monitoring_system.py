@@ -13,6 +13,8 @@ import logging
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 
+logger = logging.getLogger(__name__)
+
 # Prometheus client for metrics export
 try:
     from prometheus_client import (
@@ -23,8 +25,6 @@ try:
 except ImportError:
     PROMETHEUS_AVAILABLE = False
     logger.warning("Prometheus client not available")
-
-logger = logging.getLogger(__name__)
 
 @dataclass
 class ClusterMetrics:
@@ -141,9 +141,9 @@ class PrometheusMetricsExporter:
         # Start HTTP server for metrics
         try:
             start_http_server(port, registry=self.registry)
-            logger.info(f"✅ Prometheus metrics server started on port {port}")
+            logger.info(f"Prometheus metrics server started on port {port}")
         except Exception as e:
-            logger.error(f"❌ Failed to start Prometheus metrics server: {e}")
+            logger.error(f"Failed to start Prometheus metrics server: {e}")
 
     def update_metrics(self, metrics: ClusterMetrics):
         """Update all Prometheus metrics"""
@@ -416,7 +416,7 @@ class AlertManager:
                 triggered_alerts.append(alert)
                 self.last_alert_times[rule_name] = current_time
 
-                logger.warning(f"🚨 ALERT [{rule['severity'].upper()}]: {alert['message']}")
+                logger.warning(f"ALERT [{rule['severity'].upper()}]: {alert['message']}")
 
         self.alert_history.extend(triggered_alerts)
         return triggered_alerts
@@ -444,14 +444,14 @@ class ClusterMonitor:
         self.monitoring_thread = threading.Thread(target=self._monitoring_loop, args=(metrics_callback,))
         self.monitoring_thread.daemon = True
         self.monitoring_thread.start()
-        logger.info("✅ Cluster monitoring started")
+        logger.info("Cluster monitoring started")
 
     def stop_monitoring(self):
         """Stop monitoring"""
         self.is_monitoring = False
         if self.monitoring_thread:
             self.monitoring_thread.join(timeout=5)
-        logger.info("⏹️ Cluster monitoring stopped")
+        logger.info("️ Cluster monitoring stopped")
 
     def _monitoring_loop(self, metrics_callback: Optional[Callable]):
         """Main monitoring loop"""
@@ -538,7 +538,7 @@ class ClusterMonitor:
         with open(filename, 'w') as f:
             f.write(dashboard_json)
 
-        logger.info(f"📊 Grafana dashboard exported to {filename}")
+        logger.info(f"Grafana dashboard exported to {filename}")
         return filename
 
 class MonitoringDemo:
@@ -565,24 +565,24 @@ class MonitoringDemo:
         # Show results
         current_metrics = self.monitor.get_current_metrics()
         if current_metrics:
-            print("
-📈 Final Metrics:"            print(f"   Active nodes: {current_metrics.active_nodes}/{current_metrics.total_nodes}")
+            print("\nFinal Metrics:")
+            print(f"   Active nodes: {current_metrics.active_nodes}/{current_metrics.total_nodes}")
             print(f"   Requests/sec: {current_metrics.requests_per_second:.1f}")
             print(f"   Avg latency: {current_metrics.average_latency_ms:.1f}ms")
             print(f"   Error rate: {current_metrics.error_rate:.2%}")
             print(f"   CPU usage: {current_metrics.average_cpu_usage:.1f}%")
 
         # Export Grafana dashboard
-        print("
-📊 Exporting Grafana Dashboard..."        dashboard_file = self.monitor.export_grafana_dashboard()
-        print(f"✅ Dashboard configuration saved to: {dashboard_file}")
+        print("\nExporting Grafana Dashboard...")
+        dashboard_file = self.monitor.export_grafana_dashboard()
+        print(f"Dashboard configuration saved to: {dashboard_file}")
 
-        print("
-🚨 Alert History:"        for alert in self.monitor.alert_manager.alert_history[-5:]:  # Last 5 alerts
+        print("\nAlert History:")
+        for alert in self.monitor.alert_manager.alert_history[-5:]:  # Last 5 alerts
             print(f"   [{alert['severity'].upper()}] {alert['message']}")
 
-        print("
-✅ Monitoring Demo Complete!"
+        print("\nMonitoring Demo Complete!")
+
     def _metrics_callback(self, metrics: ClusterMetrics, alerts: List[Dict]):
         """Callback for real-time metrics display"""
         if alerts:

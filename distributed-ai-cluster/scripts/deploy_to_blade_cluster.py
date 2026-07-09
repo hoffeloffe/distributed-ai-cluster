@@ -44,21 +44,21 @@ class BladeClusterDeployer:
 
     def check_your_cluster_status(self) -> bool:
         """Check if your Blade cluster is ready for deployment"""
-        logger.info("🔍 Checking your Blade cluster status...")
+        logger.info("Checking your Blade cluster status...")
 
         try:
             # Check cluster connectivity
             result = subprocess.run([
                 "kubectl", "cluster-info"
             ], capture_output=True, text=True, check=True)
-            logger.info("✅ Blade cluster is accessible")
+            logger.info("Blade cluster is accessible")
 
             # Check nodes
             result = subprocess.run([
                 "kubectl", "get", "nodes", "-o", "wide"
             ], capture_output=True, text=True, check=True)
 
-            logger.info("📦 Your cluster nodes:")
+            logger.info("Your cluster nodes:")
             for line in result.stdout.strip().split('\n')[1:]:  # Skip header
                 if line.strip():
                     parts = line.split()
@@ -75,7 +75,7 @@ class BladeClusterDeployer:
             ], capture_output=True, text=True)
 
             if result.returncode == 0:
-                logger.info("📊 Node resource usage:")
+                logger.info("Node resource usage:")
                 for line in result.stdout.strip().split('\n')[1:]:  # Skip header
                     if line.strip():
                         logger.info(f"   {line}")
@@ -86,7 +86,7 @@ class BladeClusterDeployer:
             ], capture_output=True, text=True)
 
             if result.returncode != 0:
-                logger.info(f"📦 Creating namespace '{self.namespace}'")
+                logger.info(f"Creating namespace '{self.namespace}'")
                 subprocess.run([
                     "kubectl", "create", "namespace", self.namespace
                 ], check=True)
@@ -94,8 +94,8 @@ class BladeClusterDeployer:
             return True
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Blade cluster check failed: {e}")
-            logger.error("💡 Make sure your kubeconfig is pointing to the correct cluster")
+            logger.error(f"Blade cluster check failed: {e}")
+            logger.error("Make sure your kubeconfig is pointing to the correct cluster")
             return False
 
     def optimize_for_your_cluster(self, values_file: str) -> str:
@@ -148,13 +148,13 @@ class BladeClusterDeployer:
         with open(optimized_values_path, 'w') as f:
             yaml.dump(values, f, default_flow_style=False)
 
-        logger.info(f"✅ Optimized values file created: {optimized_values_path}")
+        logger.info(f"Optimized values file created: {optimized_values_path}")
         return optimized_values_path
 
     def deploy_to_your_cluster(self, registry: str = None, custom_values: str = None) -> bool:
         """Deploy to your Blade cluster"""
 
-        logger.info("🚀 Deploying to your Blade K3s cluster...")
+        logger.info("Deploying to your Blade K3s cluster...")
         logger.info("=" * 50)
 
         # Use optimized values if no custom values provided
@@ -184,19 +184,19 @@ class BladeClusterDeployer:
             logger.info(f"Running: {' '.join(cmd)}")
 
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            logger.info("✅ Helm deployment completed successfully")
+            logger.info("Helm deployment completed successfully")
 
             return True
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Deployment failed: {e}")
+            logger.error(f"Deployment failed: {e}")
             logger.error(f"Error output: {e.stderr}")
             return False
 
     def wait_for_deployment_ready(self, timeout: int = 300) -> bool:
         """Wait for deployment to be ready"""
 
-        logger.info(f"⏳ Waiting for deployment to be ready (timeout: {timeout}s)...")
+        logger.info(f"Waiting for deployment to be ready (timeout: {timeout}s)...")
 
         start_time = time.time()
 
@@ -219,28 +219,28 @@ class BladeClusterDeployer:
                 worker_ready = result.stdout.strip() == "3"  # We set replicas to 3
 
                 if master_ready and worker_ready:
-                    logger.info("✅ All deployments are ready!")
+                    logger.info("All deployments are ready!")
                     return True
 
-                logger.info("⏳ Waiting for pods to be ready...")
+                logger.info("Waiting for pods to be ready...")
                 time.sleep(15)
 
             except subprocess.CalledProcessError:
-                logger.info("⏳ Waiting for deployments to be created...")
+                logger.info("Waiting for deployments to be created...")
                 time.sleep(10)
 
-        logger.error(f"❌ Deployment not ready after {timeout} seconds")
+        logger.error(f"Deployment not ready after {timeout} seconds")
         return False
 
     def show_deployment_status(self):
         """Show detailed deployment status"""
 
-        logger.info("📊 Deployment Status for Blade Cluster")
+        logger.info("Deployment Status for Blade Cluster")
         logger.info("=" * 45)
 
         try:
             # Show all resources in our namespace
-            logger.info(f"\n🔍 All resources in namespace '{self.namespace}':")
+            logger.info(f"\n All resources in namespace '{self.namespace}':")
             result = subprocess.run([
                 "kubectl", "get", "all,ingress,svc,pvc,configmap",
                 "-n", self.namespace, "--show-labels"
@@ -250,8 +250,8 @@ class BladeClusterDeployer:
                 print(result.stdout)
 
             # Show pod details
-            logger.info("
-📦 Pod Details:"            result = subprocess.run([
+            logger.info("\nPod Details:")
+            result = subprocess.run([
                 "kubectl", "get", "pods", "-n", self.namespace,
                 "-o", "wide"
             ], capture_output=True, text=True)
@@ -260,8 +260,8 @@ class BladeClusterDeployer:
                 print(result.stdout)
 
             # Show services
-            logger.info("
-🌐 Services:"            result = subprocess.run([
+            logger.info("\nServices:")
+            result = subprocess.run([
                 "kubectl", "get", "svc", "-n", self.namespace
             ], capture_output=True, text=True)
 
@@ -274,7 +274,7 @@ class BladeClusterDeployer:
     def get_access_information(self):
         """Get access information for your deployment"""
 
-        logger.info("🎯 Access Information for Blade Cluster")
+        logger.info("Access Information for Blade Cluster")
         logger.info("=" * 40)
 
         try:
@@ -286,18 +286,18 @@ class BladeClusterDeployer:
 
             if result.returncode == 0 and result.stdout.strip():
                 host = result.stdout.strip()
-                logger.info(f"🌐 Dashboard: http://{host}/dashboard")
-                logger.info(f"📡 API Endpoint: http://{host}/api")
-                logger.info(f"📊 Grafana: http://{host}/grafana")
+                logger.info(f"Dashboard: http://{host}/dashboard")
+                logger.info(f"API Endpoint: http://{host}/api")
+                logger.info(f"Grafana: http://{host}/grafana")
             else:
                 # Fallback to service port-forwarding
-                logger.info("🔗 Access via kubectl port-forward:")
+                logger.info("Access via kubectl port-forward:")
                 logger.info(f"   kubectl port-forward -n {self.namespace} svc/distributed-ai-blade-master-service 8080:8080")
                 logger.info("   Then open: http://localhost:8080/dashboard")
 
             # Show monitoring access
-            logger.info("
-📊 Monitoring:"            logger.info(f"   kubectl port-forward -n {self.namespace} svc/distributed-ai-blade-prometheus-server 9090:80")
+            logger.info("\nMonitoring:")
+            logger.info(f"   kubectl port-forward -n {self.namespace} svc/distributed-ai-blade-prometheus-server 9090:80")
             logger.info("   kubectl port-forward -n {self.namespace} svc/distributed-ai-blade-grafana 3000:80")
 
         except Exception as e:
@@ -306,7 +306,7 @@ class BladeClusterDeployer:
     def test_your_deployment(self) -> bool:
         """Test that your deployment is working"""
 
-        logger.info("🧪 Testing Blade cluster deployment...")
+        logger.info("Testing Blade cluster deployment...")
 
         try:
             # Get master service IP
@@ -318,7 +318,7 @@ class BladeClusterDeployer:
             service_ip = result.stdout.strip()
 
             if not service_ip:
-                logger.error("❌ Master service not found")
+                logger.error("Master service not found")
                 return False
 
             # Test health endpoint
@@ -336,20 +336,20 @@ class BladeClusterDeployer:
             running_pods = result.stdout.count("Running")
 
             if running_pods >= 4:  # 1 master + 3 workers
-                logger.info(f"✅ {running_pods} pods are running")
+                logger.info(f"{running_pods} pods are running")
                 return True
             else:
-                logger.warning(f"⚠️ Only {running_pods} pods running (expected 4)")
+                logger.warning(f"️ Only {running_pods} pods running (expected 4)")
                 return False
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Deployment test failed: {e}")
+            logger.error(f"Deployment test failed: {e}")
             return False
 
     def deploy(self, registry: str = None, skip_test: bool = False) -> bool:
         """Complete deployment to your Blade cluster"""
 
-        logger.info("🚀 Starting deployment to Blade K3s cluster")
+        logger.info("Starting deployment to Blade K3s cluster")
         logger.info("=" * 50)
 
         # Step 1: Deploy
@@ -358,7 +358,7 @@ class BladeClusterDeployer:
 
         # Step 2: Wait for ready
         if not self.wait_for_deployment_ready():
-            logger.warning("⚠️ Deployment may not be fully ready")
+            logger.warning("️ Deployment may not be fully ready")
             # Continue anyway
 
         # Step 3: Show status
@@ -370,12 +370,12 @@ class BladeClusterDeployer:
         # Step 5: Test deployment
         if not skip_test:
             if not self.test_your_deployment():
-                logger.warning("⚠️ Some tests failed, but deployment may still work")
+                logger.warning("️ Some tests failed, but deployment may still work")
             else:
-                logger.info("✅ All tests passed!")
+                logger.info("All tests passed!")
 
-        logger.info("🎉 Deployment to Blade cluster completed!")
-        logger.info("🎯 Your distributed AI cluster is now running!")
+        logger.info("Deployment to Blade cluster completed!")
+        logger.info("Your distributed AI cluster is now running!")
 
         return True
 
@@ -396,10 +396,10 @@ def main():
     )
 
     if success:
-        logger.info("✅ Deployment successful!")
+        logger.info("Deployment successful!")
         return 0
     else:
-        logger.error("❌ Deployment failed!")
+        logger.error("Deployment failed!")
         return 1
 
 if __name__ == "__main__":

@@ -27,33 +27,33 @@ class RancherClusterDeployer:
 
     def check_prerequisites(self) -> bool:
         """Check if all prerequisites are met"""
-        logger.info("🔍 Checking deployment prerequisites...")
+        logger.info("Checking deployment prerequisites...")
 
         # Check kubectl
         try:
             result = subprocess.run(["kubectl", "version", "--client"],
                                   capture_output=True, text=True, check=True)
-            logger.info("✅ kubectl is available")
+            logger.info("kubectl is available")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            logger.error("❌ kubectl not found. Please install kubectl and configure it for your cluster")
+            logger.error("kubectl not found. Please install kubectl and configure it for your cluster")
             return False
 
         # Check Helm
         try:
             result = subprocess.run(["helm", "version"],
                                   capture_output=True, text=True, check=True)
-            logger.info("✅ Helm is available")
+            logger.info("Helm is available")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            logger.error("❌ Helm not found. Please install Helm 3")
+            logger.error("Helm not found. Please install Helm 3")
             return False
 
         # Check cluster connectivity
         try:
             result = subprocess.run(["kubectl", "cluster-info"],
                                   capture_output=True, text=True, check=True)
-            logger.info("✅ Kubernetes cluster is accessible")
+            logger.info("Kubernetes cluster is accessible")
         except subprocess.CalledProcessError:
-            logger.error("❌ Cannot connect to Kubernetes cluster. Please check your kubeconfig")
+            logger.error("Cannot connect to Kubernetes cluster. Please check your kubeconfig")
             return False
 
         # Check if namespace exists
@@ -63,23 +63,23 @@ class RancherClusterDeployer:
             ], capture_output=True, text=True)
 
             if result.returncode == 0:
-                logger.info(f"✅ Namespace '{self.namespace}' exists")
+                logger.info(f"Namespace '{self.namespace}' exists")
             else:
-                logger.info(f"📦 Creating namespace '{self.namespace}'")
+                logger.info(f"Creating namespace '{self.namespace}'")
                 subprocess.run([
                     "kubectl", "create", "namespace", self.namespace
                 ], check=True)
-                logger.info(f"✅ Created namespace '{self.namespace}'")
+                logger.info(f"Created namespace '{self.namespace}'")
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Failed to check/create namespace: {e}")
+            logger.error(f"Failed to check/create namespace: {e}")
             return False
 
         return True
 
     def validate_cluster_resources(self) -> bool:
         """Validate cluster has sufficient resources"""
-        logger.info("🔍 Validating cluster resources...")
+        logger.info("Validating cluster resources...")
 
         try:
             # Check available nodes
@@ -91,9 +91,9 @@ class RancherClusterDeployer:
             total_nodes = len(nodes_data["items"])
 
             if total_nodes < 2:
-                logger.warning(f"⚠️ Only {total_nodes} nodes available. Recommend 3+ nodes for optimal performance")
+                logger.warning(f"️ Only {total_nodes} nodes available. Recommend 3+ nodes for optimal performance")
             else:
-                logger.info(f"✅ {total_nodes} nodes available")
+                logger.info(f"{total_nodes} nodes available")
 
             # Check available CPU and memory
             total_cpu = 0
@@ -116,38 +116,38 @@ class RancherClusterDeployer:
                 elif memory.endswith("Mi"):
                     total_memory += int(memory[:-2]) / 1024
 
-            logger.info(f"📊 Cluster resources: {total_cpu:.1f} CPU cores, {total_memory:.1f} Gi memory")
+            logger.info(f"Cluster resources: {total_cpu:.1f} CPU cores, {total_memory:.1f} Gi memory")
 
             # Check if we have enough resources for our deployment
             required_cpu = 10  # 4 workers * 2.5 CPU each
             required_memory = 24  # 4 workers * 6 Gi each
 
             if total_cpu < required_cpu:
-                logger.warning(f"⚠️ Available CPU ({total_cpu:.1f}) may be insufficient for 4 workers (need {required_cpu})")
+                logger.warning(f"️ Available CPU ({total_cpu:.1f}) may be insufficient for 4 workers (need {required_cpu})")
             else:
-                logger.info(f"✅ Sufficient CPU resources available")
+                logger.info(f"Sufficient CPU resources available")
 
             if total_memory < required_memory:
-                logger.warning(f"⚠️ Available memory ({total_memory:.1f} Gi) may be insufficient for 4 workers (need {required_memory} Gi)")
+                logger.warning(f"️ Available memory ({total_memory:.1f} Gi) may be insufficient for 4 workers (need {required_memory} Gi)")
             else:
-                logger.info(f"✅ Sufficient memory resources available")
+                logger.info(f"Sufficient memory resources available")
 
             return True
 
         except Exception as e:
-            logger.error(f"❌ Failed to validate cluster resources: {e}")
+            logger.error(f"Failed to validate cluster resources: {e}")
             return False
 
     def build_and_push_images(self, registry: str = None) -> bool:
         """Build Docker images and push to registry"""
         registry = registry or self.registry
 
-        logger.info(f"🏗️ Building and pushing images to {registry}...")
+        logger.info(f"️ Building and pushing images to {registry}...")
 
         # Check if Dockerfile exists
         dockerfile_path = self.deployment_dir / "Dockerfile"
         if not dockerfile_path.exists():
-            logger.error(f"❌ Dockerfile not found at {dockerfile_path}")
+            logger.error(f"Dockerfile not found at {dockerfile_path}")
             return False
 
         # Build image
@@ -161,7 +161,7 @@ class RancherClusterDeployer:
                 str(self.deployment_dir)
             ], check=True, cwd=self.deployment_dir)
 
-            logger.info("✅ Docker image built successfully")
+            logger.info("Docker image built successfully")
 
             # Push image
             logger.info(f"Pushing image to registry: {image_tag}")
@@ -169,22 +169,22 @@ class RancherClusterDeployer:
                 "docker", "push", image_tag
             ], check=True)
 
-            logger.info("✅ Docker image pushed successfully")
+            logger.info("Docker image pushed successfully")
             return True
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Failed to build/push Docker image: {e}")
-            logger.error("💡 Make sure Docker is running and you have registry access")
+            logger.error(f"Failed to build/push Docker image: {e}")
+            logger.error("Make sure Docker is running and you have registry access")
             return False
 
     def deploy_with_helm(self, values_file: str = None) -> bool:
         """Deploy using Helm chart"""
-        logger.info("🚀 Deploying with Helm...")
+        logger.info("Deploying with Helm...")
 
         helm_chart_path = self.deployment_dir / "helm" / "distributed-ai-cluster"
 
         if not helm_chart_path.exists():
-            logger.error(f"❌ Helm chart not found at {helm_chart_path}")
+            logger.error(f"Helm chart not found at {helm_chart_path}")
             return False
 
         # Prepare Helm command
@@ -211,8 +211,8 @@ class RancherClusterDeployer:
             logger.info(f"Running Helm command: {' '.join(cmd)}")
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
 
-            logger.info("✅ Helm deployment completed successfully")
-            logger.info("📋 Deployment Summary:")
+            logger.info("Helm deployment completed successfully")
+            logger.info("Deployment Summary:")
 
             # Show deployment status
             time.sleep(5)  # Wait for resources to be created
@@ -236,13 +236,13 @@ class RancherClusterDeployer:
             return True
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"❌ Helm deployment failed: {e}")
+            logger.error(f"Helm deployment failed: {e}")
             logger.error(f"Error output: {e.stderr}")
             return False
 
     def validate_deployment(self) -> bool:
         """Validate that deployment is working correctly"""
-        logger.info("🔍 Validating deployment...")
+        logger.info("Validating deployment...")
 
         max_wait_time = 300  # 5 minutes
         start_time = time.time()
@@ -267,22 +267,22 @@ class RancherClusterDeployer:
                         break
 
                 if all_ready:
-                    logger.info("✅ All deployments are ready!")
+                    logger.info("All deployments are ready!")
                     break
 
-                logger.info("⏳ Waiting for deployments to be ready...")
+                logger.info("Waiting for deployments to be ready...")
                 time.sleep(10)
 
             except Exception as e:
-                logger.error(f"❌ Validation failed: {e}")
+                logger.error(f"Validation failed: {e}")
                 return False
 
         if not all_ready:
-            logger.error(f"❌ Deployment validation failed after {max_wait_time} seconds")
+            logger.error(f"Deployment validation failed after {max_wait_time} seconds")
             return False
 
         # Test API endpoint
-        logger.info("🧪 Testing API endpoints...")
+        logger.info("Testing API endpoints...")
 
         try:
             # Get service IP
@@ -294,30 +294,30 @@ class RancherClusterDeployer:
             service_ip = result.stdout.strip()
 
             if service_ip:
-                logger.info(f"✅ Master service available at {service_ip}:8080")
+                logger.info(f"Master service available at {service_ip}:8080")
 
                 # Try to access health endpoint (if curl available)
                 try:
                     import requests
                     response = requests.get(f"http://{service_ip}:8080/health", timeout=5)
                     if response.status_code == 200:
-                        logger.info("✅ Health check passed")
+                        logger.info("Health check passed")
                     else:
-                        logger.warning(f"⚠️ Health check returned status {response.status_code}")
+                        logger.warning(f"️ Health check returned status {response.status_code}")
                 except ImportError:
                     logger.info("ℹ️ Install requests library to enable health checks")
                 except Exception as e:
-                    logger.warning(f"⚠️ Health check failed: {e}")
+                    logger.warning(f"️ Health check failed: {e}")
 
             return True
 
         except subprocess.CalledProcessError:
-            logger.warning("⚠️ Could not retrieve service IP for validation")
+            logger.warning("️ Could not retrieve service IP for validation")
             return True  # Still consider deployment successful
 
     def get_access_information(self):
         """Get information on how to access the deployed system"""
-        logger.info("📋 Deployment Access Information")
+        logger.info("Deployment Access Information")
         logger.info("=" * 40)
 
         try:
@@ -329,11 +329,11 @@ class RancherClusterDeployer:
 
             if result.returncode == 0 and result.stdout.strip():
                 host = result.stdout.strip()
-                logger.info(f"🌐 Dashboard URL: http://{host}/dashboard")
-                logger.info(f"📡 API Endpoint: http://{host}/api")
+                logger.info(f"Dashboard URL: http://{host}/dashboard")
+                logger.info(f"API Endpoint: http://{host}/api")
             else:
                 # Fallback to port-forwarding
-                logger.info("🔗 Access via port-forwarding:")
+                logger.info("Access via port-forwarding:")
                 logger.info(f"   kubectl port-forward -n {self.namespace} svc/ai-master-service 8080:8080")
                 logger.info("   Then open: http://localhost:8080/dashboard")
 
@@ -344,7 +344,7 @@ class RancherClusterDeployer:
             ], capture_output=True, text=True)
 
             if result.returncode == 0:
-                logger.info("📦 Running Pods:")
+                logger.info("Running Pods:")
                 for line in result.stdout.strip().split('\n'):
                     if line.strip():
                         parts = line.split()
@@ -358,7 +358,7 @@ class RancherClusterDeployer:
 
     def cleanup_failed_deployment(self):
         """Clean up failed deployment"""
-        logger.info("🧹 Cleaning up failed deployment...")
+        logger.info("Cleaning up failed deployment...")
 
         try:
             subprocess.run([
@@ -366,13 +366,13 @@ class RancherClusterDeployer:
                 "-n", self.namespace
             ], check=True)
 
-            logger.info("✅ Cleanup completed")
+            logger.info("Cleanup completed")
         except subprocess.CalledProcessError:
-            logger.warning("⚠️ Cleanup may have failed")
+            logger.warning("️ Cleanup may have failed")
 
     def deploy(self, skip_build: bool = False, values_file: str = None) -> bool:
         """Complete deployment process"""
-        logger.info("🚀 Starting Automated Deployment")
+        logger.info("Starting Automated Deployment")
         logger.info("=" * 50)
 
         # Step 1: Prerequisites
@@ -381,14 +381,14 @@ class RancherClusterDeployer:
 
         # Step 2: Resource validation
         if not self.validate_cluster_resources():
-            logger.warning("⚠️ Resource validation failed, but continuing...")
+            logger.warning("️ Resource validation failed, but continuing...")
 
         # Step 3: Build and push images (unless skipped)
         if not skip_build:
             if not self.build_and_push_images():
                 return False
         else:
-            logger.info("⏭️ Skipping Docker build/push")
+            logger.info("️ Skipping Docker build/push")
 
         # Step 4: Deploy with Helm
         if not self.deploy_with_helm(values_file):
@@ -397,14 +397,14 @@ class RancherClusterDeployer:
 
         # Step 5: Validate deployment
         if not self.validate_deployment():
-            logger.warning("⚠️ Deployment validation failed")
+            logger.warning("️ Deployment validation failed")
             return False
 
         # Step 6: Show access information
         self.get_access_information()
 
-        logger.info("🎉 Deployment completed successfully!")
-        logger.info("🎯 Your distributed AI cluster is now running on Kubernetes!")
+        logger.info("Deployment completed successfully!")
+        logger.info("Your distributed AI cluster is now running on Kubernetes!")
 
         return True
 
@@ -426,10 +426,10 @@ def main():
     )
 
     if success:
-        logger.info("✅ Deployment successful! Check the access information above.")
+        logger.info("Deployment successful! Check the access information above.")
         return 0
     else:
-        logger.error("❌ Deployment failed!")
+        logger.error("Deployment failed!")
         return 1
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  lint-and-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile all Python files
+        run: |
+          for f in $(find . -name '*.py' -not -path './.git/*'); do
+            python -m py_compile "$f"
+          done
+      - name: Install and run ruff
+        run: |
+          pip install ruff
+          ruff check .
+      - name: Helm lint
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          helm lint helm/distributed-ai-cluster/ || true

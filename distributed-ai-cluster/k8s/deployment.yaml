@@ -39,16 +39,10 @@ data:
       }
     }
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ai-cluster-secrets
-  namespace: distributed-ai
-type: Opaque
-data:
-  # Base64 encoded secrets - update these!
-  database-password: Y2hhbmdlLW1lLWFkZGluLWV0YzU3ODk=
-  jwt-secret: Y2hhbmdlLW1lLWFkZGluLWV0YzU3ODk=
+# Secret should be created via sealed-secrets or external-secrets operator
+# kubectl create secret generic ai-cluster-secrets \
+#   --from-literal=database-password=<PASSWORD> \
+#   --from-literal=jwt-secret=<SECRET>
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
